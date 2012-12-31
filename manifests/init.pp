@@ -30,6 +30,30 @@
 # will have an number prefix of 10, you can use the order option
 # to control that and thus control the order the final file gets built in.
 #
+# You can also specify a path and use a different name for your resources:
+#
+# # You can make this something dynamic, based on whatever parameters your
+# # module/class for example.
+# $vhost_file = '/etc/httpd/vhosts/01-my-vhost.conf'
+#
+# concat{'apache-vhost-myvhost':
+#   path => $vhost_file,
+# }
+#
+# # We don't care where the file is located, just what to put in it.
+# concat::fragment {'apache-vhost-myvhost-main':
+#   target  => 'apache-vhost-myvhost',
+#   content => '<virtualhost *:80>',
+#   order   => 01,
+# }
+#
+# concat::fragment {'apache-vhost-myvhost-close':
+#   target  => 'apache-vhost-myvhost',
+#   content => '</virtualhost>',
+#   order   => 99,
+# }
+#
+#
 # SETUP:
 # The class concat::setup uses the fact concat_basedir to define the variable
 # $concatdir, where all the temporary files and fragments will be
@@ -66,6 +90,10 @@
 # Sets up so that you can use fragments to build a final config file,
 #
 # OPTIONS:
+#  - path       The path to the final file. Use this in case you want to
+#               differentiate between the name of a resource and the file path.
+#               Note: Use the name you provided in the target of your
+#               fragments.
 #  - mode       The mode of the final file
 #  - owner      Who will own the file
 #  - group      Who will own the file
@@ -74,6 +102,8 @@
 #               that it is built by puppet
 #  - backup     Controls the filebucketing behavior of the final file and
 #               see File type reference for its use.  Defaults to 'puppet'
+#  - replace    Whether to replace a file that already exists on the local
+#               system
 #
 # ACTIONS:
 #  - Creates fragment directories if it didn't exist already
@@ -94,12 +124,14 @@
 #  - The final file can be referened as File["/path/to/file"] or
 #    File["concat_/path/to/file"]
 define concat(
+  $path = $name,
   $owner = $::id,
   $group = $concat::setup::root_group,
   $mode = '0644',
   $warn = false,
   $force = false,
   $backup = 'puppet',
+  $replace = true,
   $gnu = undef,
   $order='alpha'
 ) {
@@ -155,10 +187,11 @@ define concat(
   }
 
   File {
-    owner  => $::id,
-    group  => $group,
-    mode   => $mode,
-    backup => $backup
+    owner   => $::id,
+    group   => $group,
+    mode    => $mode,
+    backup  => $backup,
+    replace => $replace
   }
 
   file { $fragdir:
@@ -190,6 +223,7 @@ define concat(
 
   file { $name:
     ensure   => present,
+    path     => $path,
     alias    => "concat_${name}",
     group    => $group,
     mode     => $mode,
